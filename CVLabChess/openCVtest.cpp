@@ -15,6 +15,7 @@ const int EPSILON_LINES = 10;
 const string WINDOW = "Setting up the Board";
 const float WIDTH = 500;
 const float HEIGHT = 500;
+double IMG_RATIO = 16 / 9;
 
 int threshMinCanny = 10;
 int threshMaxCanny = 100;
@@ -64,15 +65,21 @@ int main() {
 
 	VideoCapture cap(WEBCAM_ID);
 	namedWindow(WINDOW);
-	Mat img, img_scanned, img_static_resized, img_static_warped, img_static_cannyed, img_static_houghed, img_static_intersected;
+	Mat img, img_scanned, img_static_resized, img_full_static_resized, img_static_warped, img_full_static_warped, img_static_cannyed, img_static_houghed, img_static_intersected;
 	vector<vector<Point>> horizontalLines, verticalLines;
 	vector<Point> intersections, boardFields;
 
-	string path = "Ressources/chessboard2.png";
-	Mat img_board = imread(path);
-	resize(img_board, img_static_resized, { 600 , 400 });
+	Mat img_board = imread("Ressources/chessboard_table_lamp_empty.png");
+	Mat img_full_board = imread("Ressources/chessboard_table_lamp_pawns.png");
+	cout << "img width: " << img_board.cols << " img height: " << img_board.rows << endl;
+	IMG_RATIO = img_board.cols / img_board.rows;
+	cout << IMG_RATIO << "->" << cvRound(400 * IMG_RATIO) << endl;
+	resize(img_board, img_static_resized, { 600, 400 });
+	resize(img_full_board, img_full_static_resized, { 600, 400 });
+	cout << "img width: " << img_static_resized.cols << " img height: " << img_static_resized.rows << endl;
 	vector<Point> maxRect = getMaxRect(img_static_resized);
 	img_static_warped = warpBoard(img_static_resized, maxRect, 500, 500);
+	img_full_static_warped = warpBoard(img_full_static_resized, maxRect, 500, 500);
 	img_static_cannyed = cannyBoard(img_static_warped);
 	getHoughLines(img_static_cannyed, horizontalLines, verticalLines);
 	drawLines(img_static_warped, horizontalLines, verticalLines);
@@ -80,26 +87,28 @@ int main() {
 	//drawIntersections(img_static_warped, intersections);
 	getBoardFields(intersections, boardFields);
 	drawIntersections(img_static_warped, boardFields);
+	drawIntersections(img_full_static_warped, boardFields);
 
 
 	drawRect(img_static_resized, maxRect);
 	imshow("static keypoints", img_static_resized);
 	//imshow("static cannyed", img_static_cannyed);
 	imshow("static warped", img_static_warped);
+	imshow("full static warped", img_full_static_warped);
 	//imshow("static houghed", img_static_houghed);
-
 
 
 	createTrackbar("Min Canny", WINDOW, &sliderMinCanny, 250, on_trackbar_min_canny);
 	createTrackbar("Max Canny", WINDOW, &sliderMaxCanny, 250, on_trackbar_max_canny);
 	createTrackbar("Min Area", WINDOW, &sliderMinArea, 2500, on_trackbar_min_area);
 	createTrackbar("Max Area", WINDOW, &sliderMaxArea, 2500, on_trackbar_max_area);
+	//TODO make Buttons with callbacks createButton("Recalculate Board", )
 
-	while (true) {
+	while (waitKey(30) != 'q') {
 		cap.read(img);
 		img_scanned = contourBoard(cannyBoard(img));
 		imshow("Image", img);
-		imshow(WINDOW, img_scanned);
+		//imshow(WINDOW, img_scanned);
 		waitKey(1);
 	}
 
