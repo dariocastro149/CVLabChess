@@ -105,9 +105,9 @@ int main() {
 	//TODO make Buttons with callbacks createButton("Recalculate Board", )
 
 	while (waitKey(30) != 'q') {
-		cap.read(img);
-		img_scanned = contourBoard(cannyBoard(img));
-		imshow("Image", img);
+		//cap.read(img);
+		//img_scanned = contourBoard(cannyBoard(img));
+		//imshow("Image", img);
 		//imshow(WINDOW, img_scanned);
 		waitKey(1);
 	}
