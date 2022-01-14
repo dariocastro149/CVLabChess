@@ -11,6 +11,7 @@ using namespace std;
 #define WEBCAM_ID 1
 #define EPSILON 0.001
 const int EPSILON_LINES = 10;
+const int EPSILON_BRIGHTNESS = 5;
 
 const string WINDOW = "Setting up the Board";
 const float WIDTH = 500;
@@ -35,6 +36,8 @@ void drawLines(Mat img, vector<vector<Point>>& horizontalLines, vector<vector<Po
 void getIntersections(const vector<vector<Point>> horizontalLines, const vector<vector<Point>> verticalLines, vector<Point>& intersections);
 void drawIntersections(Mat img, const vector<Point> intersections);
 void getBoardFields(vector<Point> intersections, vector<Point>& boardFields);
+void getFieldCornerPoints(const vector<Point> intersections, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints);
+void getMeanFieldColors(const Mat first_img, const Mat second_img, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints, vector<int>& meanColors);
 void getHoughLines(const Mat img, vector<vector<Point>>& horizontalLines, vector<vector<Point>>& verticalLines);
 void sortLines(const vector<vector<Point>> src, vector<vector<Point>>& dst);
 Mat warpBoard(Mat img, vector<Point> points, float width, float height);
@@ -67,7 +70,8 @@ int main() {
 	namedWindow(WINDOW);
 	Mat img, img_scanned, img_static_resized, img_full_static_resized, img_static_warped, img_full_static_warped, img_static_cannyed, img_static_houghed, img_static_intersected;
 	vector<vector<Point>> horizontalLines, verticalLines;
-	vector<Point> intersections, boardFields;
+	vector<Point> intersections, boardFields, topLeftPoints, bottomRightPoints;
+	vector<int> meanColors;
 
 	Mat img_board = imread("Ressources/chessboard_table_lamp_empty.png");
 	Mat img_full_board = imread("Ressources/chessboard_table_lamp_pawns.png");
@@ -82,14 +86,18 @@ int main() {
 	img_full_static_warped = warpBoard(img_full_static_resized, maxRect, 500, 500);
 	img_static_cannyed = cannyBoard(img_static_warped);
 	getHoughLines(img_static_cannyed, horizontalLines, verticalLines);
-	drawLines(img_static_warped, horizontalLines, verticalLines);
+	
 	getIntersections(horizontalLines, verticalLines, intersections);
 	//drawIntersections(img_static_warped, intersections);
 	getBoardFields(intersections, boardFields);
+	
+	
+	getFieldCornerPoints(intersections, topLeftPoints, bottomRightPoints);
+	getMeanFieldColors(img_static_warped, img_full_static_warped, topLeftPoints, bottomRightPoints, meanColors);
+
+	drawLines(img_static_warped, horizontalLines, verticalLines);
 	drawIntersections(img_static_warped, boardFields);
 	drawIntersections(img_full_static_warped, boardFields);
-
-
 	drawRect(img_static_resized, maxRect);
 	imshow("static keypoints", img_static_resized);
 	//imshow("static cannyed", img_static_cannyed);
@@ -201,7 +209,7 @@ void drawIntersections(Mat img, const vector<Point> intersections) {
 	Scalar red = Scalar(0, 0, 255);
 
 	for (int i = 0; i < intersections.size(); i++) {
-		cout << "Intersection " << i << ": " << intersections[i] << endl;
+		//cout << "Intersection " << i << ": " << intersections[i] << endl;
 		circle(img, intersections[i], 5, red, FILLED);
 		putText(img, to_string(i), intersections[i], FONT_HERSHEY_PLAIN, 1, red, 1);
 	}
@@ -222,6 +230,85 @@ void getBoardFields(vector<Point> intersections, vector<Point>& boardFields) {
 		}
 		else {
 			counter = 0;
+		}
+	}
+}
+
+void getFieldCornerPoints(const vector<Point> intersections, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints) {
+	int offset = sqrt(intersections.size()) + 1;
+	topLeftPoints = {};
+	bottomRightPoints = {};
+	int counter = 0;
+	for (int i = 0; i < intersections.size() - offset; i++) {
+		if (counter < offset - 2) {
+			topLeftPoints.push_back(intersections[i]);
+			bottomRightPoints.push_back(intersections[i + offset]);
+			counter++;
+		}
+		else {
+			counter = 0;
+		}
+	}
+}
+
+void getMeanFieldColors(const Mat first_img, const Mat second_img, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints, vector<int>& meanColors) {
+	Mat first_img_gray;
+	Mat second_img_gray;
+	cvtColor(first_img, first_img_gray, COLOR_BGR2GRAY);
+	cvtColor(second_img, second_img_gray, COLOR_BGR2GRAY);
+	int pixelWidth;
+	int pixelHeight;
+	Point topLeft;
+	Point bottomRight;
+	int fieldSizeX;
+	int fieldSizeY;
+	int differenceColor;
+	Mat diff;
+	Mat thresh;
+	absdiff(first_img_gray, second_img_gray, diff);
+	threshold(diff, thresh, 10, 255, 0);
+	imshow("static source", first_img);
+	imshow("static diff", diff);
+	imshow("static thresh", thresh);
+
+	/*
+	for (int i = 0; i < topLeftPoints.size(); i++) {
+		topLeft = topLeftPoints[i];
+		bottomRight = bottomRightPoints[i];
+		//cout << "Field Nr." << i << " Coords: (" << topLeft << "," << bottomRight << ")" << endl;
+		differenceColor = 0;
+		
+		
+		for (int y = topLeft.y + EPSILON_BRIGHTNESS; y < bottomRight.y - EPSILON_BRIGHTNESS; y++) {
+			for (int x = topLeft.x + EPSILON_BRIGHTNESS; x < bottomRight.x - EPSILON_BRIGHTNESS; x++) {
+				differenceColor += (int)abs(second_img_gray.at<uchar>(x, y) - first_img_gray.at<uchar>(x, y));
+				//cout << "Field (" << x << "," << y << ") Color Difference:" << differenceColor << endl;
+			}
+		}
+		differenceColor /= (bottomRight.x - topLeft.x) * (bottomRight.y - topLeft.y);
+		meanColors.push_back(differenceColor);
+		if (abs(differenceColor) > 0) {
+			cout << "Field Nr." << i << " Color Difference:" << differenceColor << endl;
+		}
+	}*/
+
+	for (int i = 0; i < topLeftPoints.size(); i++) {
+		topLeft = topLeftPoints[i];
+		bottomRight = bottomRightPoints[i];
+		//cout << "Field Nr." << i << " Coords: (" << topLeft << "," << bottomRight << ")" << endl;
+		differenceColor = 0;
+
+
+		for (int y = topLeft.y; y < bottomRight.y; y++) {
+			for (int x = topLeft.x; x < bottomRight.x; x++) {
+				differenceColor += thresh.at<uchar>(x,y);
+				//cout << "Field (" << x << "," << y << ") Color Difference:" << differenceColor << endl;
+			}
+		}
+		differenceColor /= (bottomRight.x - topLeft.x) * (bottomRight.y - topLeft.y);
+		meanColors.push_back(differenceColor);
+		if (abs(differenceColor) > 0) {
+			cout << "Field Nr." << i << " Color Difference:" << differenceColor << endl;
 		}
 	}
 }
@@ -278,7 +365,7 @@ Mat contourBoard(const Mat img) {
 	for (size_t i = 0; i < contours.size(); i++)
 	{
 		int area = contourArea(contours[i]);
-		cout << area << endl;
+		//cout << area << endl;
 		Scalar color = Scalar(255, 0, 0);
 		if (area > threshMinArea && area < threshMaxArea) {
 			drawContours(contoured, contours, (int)i, color, 2, LINE_8, hierarchy, 0);
@@ -299,9 +386,9 @@ void getHoughLines(const Mat img, vector<vector<Point>> &horizontalLines, vector
 
 	for (size_t i = 0; i < lines.size(); i++) {
 		float rho = lines[i][0], theta = lines[i][1];
-		cout << "Rho:" << rho << endl;
-		cout << "Theta:" << theta << endl;
-		cout << "PI/2:" << CV_PI / 2 << endl;
+		//cout << "Rho:" << rho << endl;
+		//cout << "Theta:" << theta << endl;
+		//cout << "PI/2:" << CV_PI / 2 << endl;
 
 		// check which houghLines have 0° or 180° angle
 		if (theta < EPSILON) {
@@ -312,7 +399,7 @@ void getHoughLines(const Mat img, vector<vector<Point>> &horizontalLines, vector
 			pt1.y = 0;
 			pt2.x = pt1.x;
 			pt2.y = WIDTH;
-			cout << "Horizontal:" << pt1 << "," << pt2 << endl;
+			//cout << "Horizontal:" << pt1 << "," << pt2 << endl;
 			horizontalLines.push_back({ pt1, pt2 });
 		}
 		else if (theta < EPSILON || abs(theta - CV_PI / 2) < EPSILON) {
@@ -323,7 +410,7 @@ void getHoughLines(const Mat img, vector<vector<Point>> &horizontalLines, vector
 			pt1.y = cvRound(y0 + 1000 * (a));
 			pt2.x = HEIGHT;
 			pt2.y = pt1.y;
-			cout << "Vertical:" << pt1 << "," << pt2 << endl;
+			//cout << "Vertical:" << pt1 << "," << pt2 << endl;
 			verticalLines.push_back({ pt1, pt2 });
 		}
 	}
