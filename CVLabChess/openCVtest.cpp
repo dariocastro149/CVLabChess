@@ -74,11 +74,12 @@ int main() {
 	vector<vector<Point>> horizontalLines, verticalLines;
 	vector<Point> intersections, boardFields, topLeftPoints, bottomRightPoints;
 	vector<Point> meanColors;
+	bool whitesTurn = true;
 
 	//Mat img_board = imread("Ressources/chessboard_table_lamp_empty.png");
 	//Mat img_full_board = imread("Ressources/chessboard_table_lamp_pawns.png");
 	Mat img_board = imread("Ressources/game/WIN_20220114_15_24_35_Pro.jpg");
-	Mat img_full_board =  imread("Ressources/game/WIN_20220114_15_25_02_Pro.jpg");
+	Mat img_full_board =  imread("Ressources/game/WIN_20220114_15_24_47_Pro.jpg");
 	cout << "img width: " << img_board.cols << " img height: " << img_board.rows << endl;
 	IMG_RATIO = img_board.cols / img_board.rows;
 	cout << IMG_RATIO << "->" << cvRound(400 * IMG_RATIO) << endl;
@@ -100,10 +101,16 @@ int main() {
 
 	getMeanFieldColors(img_static_warped, img_full_static_warped, topLeftPoints, bottomRightPoints, meanColors);
 
-	Mat colored_move_img = img_full_static_warped;
-	for (int i = 0; i < meanColors.size(); i++) {
-		colorField(img_full_static_warped, topLeftPoints, bottomRightPoints, meanColors[i].x, Scalar(255, 0, 0), colored_move_img);
-		imshow("show move", colored_move_img);
+	Mat colored_move_img;
+	img_full_static_warped.copyTo(colored_move_img);
+	for (int i = 0; i < meanColors.size(); i+=2) {
+		//colorField(img_full_static_warped, topLeftPoints, bottomRightPoints, meanColors[i].x, Scalar(255, 0, 0), colored_move_img);
+		if (whitesTurn && (meanColors[i].y < meanColors[i + 1].y) || !whitesTurn && (meanColors[i + 1].y < meanColors[i].y)) {
+			arrowedLine(colored_move_img, boardFields[meanColors[i].x], boardFields[meanColors[i + 1].x], Scalar(255, 0, 0), 3);
+		}
+		else {
+			arrowedLine(colored_move_img, boardFields[meanColors[i + 1].x], boardFields[meanColors[i].x], Scalar(255, 0, 0), 3);
+		}
 	}
 	imshow("show move", colored_move_img);
 
