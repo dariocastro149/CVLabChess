@@ -13,6 +13,16 @@ using namespace std;
 #define EPSILON 0.001
 const int EPSILON_LINES = 10;
 const int EPSILON_BRIGHTNESS = 50;
+vector<string> chessFields = {
+"A8", "B8", "C8", "D8", "E8", "F8", "G8", "H8", 
+"A7", "B7", "C7", "D7", "E7", "F7", "G7", "H7",
+"A6", "B6", "C6", "D6", "E6", "F6", "G6", "H6",
+"A5", "B5", "C5", "D5", "E5", "F5", "G5", "H5",
+"A4", "B4", "C4", "D4", "E4", "F4", "G4", "H4",
+"A3", "B3", "C3", "D3", "E3", "F3", "G3", "H3",
+"A2", "B2", "C2", "D2", "E2", "F2", "G2", "H2",
+"A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1"
+};
 
 const string WINDOW = "Setting up the Board";
 const float WIDTH = 500;
@@ -78,17 +88,17 @@ int main() {
 
 	//Mat img_board = imread("Ressources/chessboard_table_lamp_empty.png");
 	//Mat img_full_board = imread("Ressources/chessboard_table_lamp_pawns.png");
-	Mat img_board = imread("Ressources/game/WIN_20220114_15_24_35_Pro.jpg");
-	Mat img_full_board =  imread("Ressources/game/WIN_20220114_15_24_47_Pro.jpg");
+	Mat img_board = imread("Ressources/game/Schachspiel_empty.jpg");
+	//Mat img_full_board =  imread("Ressources/game/WIN_20220114_15_24_47_Pro.jpg");
 	cout << "img width: " << img_board.cols << " img height: " << img_board.rows << endl;
 	IMG_RATIO = img_board.cols / img_board.rows;
 	cout << IMG_RATIO << "->" << cvRound(400 * IMG_RATIO) << endl;
 	resize(img_board, img_static_resized, { 600, 400 });
-	resize(img_full_board, img_full_static_resized, { 600, 400 });
+	//resize(img_full_board, img_full_static_resized, { 600, 400 });
 	cout << "img width: " << img_static_resized.cols << " img height: " << img_static_resized.rows << endl;
 	vector<Point> maxRect = getMaxRect(img_static_resized);
 	img_static_warped = warpBoard(img_static_resized, maxRect, 500, 500);
-	img_full_static_warped = warpBoard(img_full_static_resized, maxRect, 500, 500);
+	//img_full_static_warped = warpBoard(img_full_static_resized, maxRect, 500, 500);
 	img_static_cannyed = cannyBoard(img_static_warped);
 	getHoughLines(img_static_cannyed, horizontalLines, verticalLines);
 	
@@ -99,31 +109,56 @@ int main() {
 	
 	getFieldCornerPoints(intersections, topLeftPoints, bottomRightPoints);
 
-	getMeanFieldColors(img_static_warped, img_full_static_warped, topLeftPoints, bottomRightPoints, meanColors);
-
-	Mat colored_move_img;
-	img_full_static_warped.copyTo(colored_move_img);
-	for (int i = 0; i < meanColors.size(); i+=2) {
-		//colorField(img_full_static_warped, topLeftPoints, bottomRightPoints, meanColors[i].x, Scalar(255, 0, 0), colored_move_img);
-		if (whitesTurn && (meanColors[i].y < meanColors[i + 1].y) || !whitesTurn && (meanColors[i + 1].y < meanColors[i].y)) {
-			arrowedLine(colored_move_img, boardFields[meanColors[i].x], boardFields[meanColors[i + 1].x], Scalar(255, 0, 0), 3);
-		}
-		else {
-			arrowedLine(colored_move_img, boardFields[meanColors[i + 1].x], boardFields[meanColors[i].x], Scalar(255, 0, 0), 3);
-		}
-	}
-	imshow("show move", colored_move_img);
+	
 
 	drawLines(img_static_warped, horizontalLines, verticalLines);
 	//drawIntersections(img_static_warped, topLeftPoints);
-	//drawIntersections(img_static_warped, boardFields);
+	drawIntersections(img_static_warped, boardFields);
 	//drawIntersections(img_full_static_warped, boardFields);
 	drawRect(img_static_resized, maxRect);
 	imshow("static keypoints", img_static_resized);
 	//imshow("static cannyed", img_static_cannyed);
 	imshow("static warped", img_static_warped);
-	imshow("full static warped", img_full_static_warped);
+	//imshow("full static warped", img_full_static_warped);
 	//imshow("static houghed", img_static_houghed);
+
+	Mat colored_move_img;
+	img_full_static_warped.copyTo(colored_move_img);
+
+
+	Mat first_img, second_img, first_img_resized, second_img_resized, first_img_warped, second_img_warped, second_img_colored;
+	for (int imageIndex = 0; imageIndex < 4; imageIndex++) {
+		first_img = imread("Ressources/game/Schachspiel_" + to_string(imageIndex) + ".jpg");
+		second_img = imread("Ressources/game/Schachspiel_" + to_string(imageIndex + 1) + ".jpg");
+		resize(first_img, first_img_resized, { 600, 400 });
+		resize(second_img, second_img_resized, { 600, 400 });
+		first_img_warped = warpBoard(first_img_resized, maxRect, 500, 500);
+		second_img_warped = warpBoard(second_img_resized, maxRect, 500, 500);
+		
+
+		getMeanFieldColors(first_img_warped, second_img_warped, topLeftPoints, bottomRightPoints, meanColors);
+
+		cout << "Mean Colors" << meanColors << endl;
+
+		second_img_warped.copyTo(second_img_colored);
+		for (int i = 0; i < meanColors.size(); i += 2) {
+			if (whitesTurn && (meanColors[i].y < meanColors[i + 1].y) || !whitesTurn && (meanColors[i + 1].y < meanColors[i].y)) {
+				arrowedLine(second_img_colored, boardFields[meanColors[i].x], boardFields[meanColors[i + 1].x], Scalar(0, 250, 250), 3);
+				cout << chessFields[meanColors[i].x] << " moves to " << chessFields[meanColors[i + 1].x] << endl;
+			}
+			else {
+				arrowedLine(second_img_colored, boardFields[meanColors[i + 1].x], boardFields[meanColors[i].x], Scalar(0, 250, 250), 3);
+				cout << chessFields[meanColors[i + 1].x] << " moves to " << chessFields[meanColors[i].x] << endl;
+			}
+		}
+		whitesTurn = !whitesTurn;
+
+		imshow("first image nr" + to_string(imageIndex), second_img_colored);
+	}
+	
+	//imshow("show move", colored_move_img);
+
+	
 
 
 	createTrackbar("Min Canny", WINDOW, &sliderMinCanny, 250, on_trackbar_min_canny);
@@ -280,6 +315,8 @@ void colorField(const Mat board_img, vector<Point>& topLeftPoints, vector<Point>
 }
 
 void getMeanFieldColors(const Mat first_img, const Mat second_img, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints, vector<Point>& meanColors) {
+
+	meanColors = {};
 	Mat colored_second_img;
 	second_img.copyTo(colored_second_img);
 	Mat first_img_gray;
@@ -332,19 +369,20 @@ void getMeanFieldColors(const Mat first_img, const Mat second_img, vector<Point>
 
 		for (int y = topLeft.y; y < bottomRight.y; y++) {
 			for (int x = topLeft.x; x < bottomRight.x; x++) {
-				differencePixel = (int)second_img_gray.at<uchar>(y, x) - first_img_gray.at<uchar>(y, x);
+				differencePixel = second_img_gray.at<uchar>(y, x) - first_img_gray.at<uchar>(y, x);
 				if (abs(differencePixel) > EPSILON_BRIGHTNESS) {
-					differenceField += differencePixel; //thresh.at<uchar>(y,x);
+					differenceField += abs(differencePixel); //thresh.at<uchar>(y,x);
 				}
 				
 				//cout << "Field (" << x << "," << y << ") Color Difference:" << differenceColor << endl;
 			}
 		}
 		differenceField /= (bottomRight.x - topLeft.x) * (bottomRight.y - topLeft.y);
+		cout << "Field Nr." << i << " Color Difference:" << differenceField << endl;
 		
 		if (abs(differenceField) > 0) {
 			meanColors.push_back(Point(i, differenceField));
-			cout << "Field Nr." << i << " Color Difference:" << differenceField << endl;
+			//cout << "Field Nr." << i << " Color Difference:" << differenceField << endl;
 		}
 	}
 	
