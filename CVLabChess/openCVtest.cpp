@@ -3,25 +3,30 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/features2d.hpp>
+#include <opencv2/core/utils/logger.hpp>
 #include <iostream>
+#include <opencv2/imgproc/types_c.h>
+
+
 
 using namespace cv;
 using namespace std;
+
 
 //ID depending on system, default is 0
 #define WEBCAM_ID 1
 #define EPSILON 0.001
 const int EPSILON_LINES = 10;
 const int EPSILON_BRIGHTNESS = 50;
-vector<string> chessFields = {
-"A8", "B8", "C8", "D8", "E8", "F8", "G8", "H8", 
-"A7", "B7", "C7", "D7", "E7", "F7", "G7", "H7",
-"A6", "B6", "C6", "D6", "E6", "F6", "G6", "H6",
-"A5", "B5", "C5", "D5", "E5", "F5", "G5", "H5",
-"A4", "B4", "C4", "D4", "E4", "F4", "G4", "H4",
-"A3", "B3", "C3", "D3", "E3", "F3", "G3", "H3",
-"A2", "B2", "C2", "D2", "E2", "F2", "G2", "H2",
-"A1", "B1", "C1", "D1", "E1", "F1", "G1", "H1"
+vector<vector<string>> chessFields = {
+{"A8", "Black Rook"}, {"B8", "Black Knight"}, {"C8", "Black Bishop"}, {"D8", "Black Queen"}, {"E8", "Black King"}, {"F8", "Black Bishop"}, {"G8", "Black Knight"}, {"H8", "Black Rook"},
+{"A7", "Black Pawn"}, {"B7", "Black Pawn"}, {"C7", "Black Pawn"}, {"D7", "Black Pawn"}, {"E7", "Black Pawn"}, {"F7", "Black Pawn"}, {"G7", "Black Pawn"}, {"H7", "Black Pawn"},
+{"A6", "Empty"}, {"B6", "Empty"}, {"C6", "Empty"}, {"D6", "Empty"}, {"E6", "Empty"}, {"F6", "Empty"}, {"G6", "Empty"}, {"H6", "Empty"},
+{"A5", "Empty"}, {"B5", "Empty"}, {"C5", "Empty"}, {"D5", "Empty"}, {"E5", "Empty"}, {"F5", "Empty"}, {"G5", "Empty"}, {"H5", "Empty"},
+{"A4", "Empty"}, {"B4", "Empty"}, {"C4", "Empty"}, {"D4", "Empty"}, {"E4", "Empty"}, {"F4", "Empty"}, {"G4", "Empty"}, {"H4", "Empty"},
+{"A3", "Empty"}, {"B3", "Empty"}, {"C3", "Empty"}, {"D3", "Empty"}, {"E3", "Empty"}, {"F3", "Empty"}, {"G3", "Empty"}, {"H3", "Empty"},
+{"A2", "White Pawn"}, {"B2", "White Pawn"}, {"C2", "White Pawn"}, {"D2", "White Pawn"}, {"E2", "White Pawn"}, {"F2", "White Pawn"}, {"G2", "White Pawn"}, {"H2", "White Pawn"},
+{"A1", "White Rook"}, {"B1", "White Knight"}, {"C1", "White Bishop"}, {"D1", "White Queen"}, {"E1", "White King"}, {"F1", "White Bishop"}, {"G1", "White Knight"}, {"H1", "White Rook"}
 };
 
 const string WINDOW = "Setting up the Board";
@@ -50,6 +55,7 @@ void getBoardFields(vector<Point> intersections, vector<Point>& boardFields);
 void getFieldCornerPoints(const vector<Point> intersections, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints);
 void colorField(const Mat board_img, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints, int index, Scalar color, Mat& mask);
 void getMeanFieldColors(const Mat first_img, const Mat second_img, vector<Point>& topLeftPoints, vector<Point>& bottomRightPoints, vector<Point>& meanColors);
+Mat makeCanvas(std::vector<cv::Mat>& vecMat, int windowHeight, int nRows);
 void getHoughLines(const Mat img, vector<vector<Point>>& horizontalLines, vector<vector<Point>>& verticalLines);
 void sortLines(const vector<vector<Point>> src, vector<vector<Point>>& dst);
 Mat warpBoard(Mat img, vector<Point> points, float width, float height);
@@ -77,6 +83,8 @@ static void on_trackbar_max_area(int, void*)
 }
 
 int main() {
+	cv::utils::logging::setLogLevel(cv::utils::logging::LogLevel::LOG_LEVEL_SILENT);
+
 
 	VideoCapture cap(WEBCAM_ID);
 	namedWindow(WINDOW);
@@ -126,10 +134,12 @@ int main() {
 	img_full_static_warped.copyTo(colored_move_img);
 
 
-	Mat first_img, second_img, first_img_resized, second_img_resized, first_img_warped, second_img_warped, second_img_colored;
-	for (int imageIndex = 0; imageIndex < 4; imageIndex++) {
-		first_img = imread("Ressources/game/Schachspiel_" + to_string(imageIndex) + ".jpg");
-		second_img = imread("Ressources/game/Schachspiel_" + to_string(imageIndex + 1) + ".jpg");
+	vector<Mat> move_images = {};
+	Mat first_img, second_img, first_img_resized, second_img_resized, first_img_warped, second_img_warped;
+	for (int imageIndex = 0; imageIndex < 20; imageIndex++) {
+		Mat second_img_colored;
+		first_img = imread("Ressources/game/Chessgame_" + to_string(imageIndex) + ".jpg");
+		second_img = imread("Ressources/game/Chessgame_" + to_string(imageIndex + 1) + ".jpg");
 		resize(first_img, first_img_resized, { 600, 400 });
 		resize(second_img, second_img_resized, { 600, 400 });
 		first_img_warped = warpBoard(first_img_resized, maxRect, 500, 500);
@@ -138,10 +148,50 @@ int main() {
 
 		getMeanFieldColors(first_img_warped, second_img_warped, topLeftPoints, bottomRightPoints, meanColors);
 
-		cout << "Mean Colors" << meanColors << endl;
+		//cout << "Mean Colors" << meanColors << endl;
 
 		second_img_warped.copyTo(second_img_colored);
-		for (int i = 0; i < meanColors.size(); i += 2) {
+		if (meanColors.size() == 2) {
+			if (chessFields[meanColors[0].x][1] != "Empty" && chessFields[meanColors[1].x][1] == "Empty") {
+				arrowedLine(second_img_colored, boardFields[meanColors[0].x], boardFields[meanColors[1].x], Scalar(0, 250, 250), 3);
+				cout << chessFields[meanColors[0].x][0] << " moves to " << chessFields[meanColors[1].x][0] << endl;
+				chessFields[meanColors[1].x][1] = chessFields[meanColors[0].x][1];
+				chessFields[meanColors[0].x][1] = "Empty";
+			}
+			else if (chessFields[meanColors[0].x][1] == "Empty" && chessFields[meanColors[1].x][1] != "Empty") {
+				arrowedLine(second_img_colored, boardFields[meanColors[1].x], boardFields[meanColors[0].x], Scalar(0, 250, 250), 3);
+				cout << chessFields[meanColors[1].x][0] << " moves to " << chessFields[meanColors[0].x][0] << endl;
+				chessFields[meanColors[0].x][1] = chessFields[meanColors[1].x][1];
+				chessFields[meanColors[1].x][1] = "Empty";
+			}
+			else if (chessFields[meanColors[0].x][1] != "Empty" && chessFields[meanColors[1].x][1] != "Empty") {
+				if (whitesTurn && chessFields[meanColors[1].x][1].compare(0, 5, "White")) {
+					arrowedLine(second_img_colored, boardFields[meanColors[0].x], boardFields[meanColors[1].x], Scalar(0, 250, 250), 3);
+					cout << chessFields[meanColors[0].x][0] << " moves to " << chessFields[meanColors[1].x][0] << endl;
+					chessFields[meanColors[1].x][1] = chessFields[meanColors[0].x][1];
+					chessFields[meanColors[0].x][1] = "Empty";
+				}
+				else if (!whitesTurn && chessFields[meanColors[1].x][1].compare(0, 5, "Black")) {
+					arrowedLine(second_img_colored, boardFields[meanColors[0].x], boardFields[meanColors[1].x], Scalar(0, 250, 250), 3);
+					cout << chessFields[meanColors[0].x][0] << " moves to " << chessFields[meanColors[1].x][0] << endl;
+					chessFields[meanColors[1].x][1] = chessFields[meanColors[0].x][1];
+					chessFields[meanColors[0].x][1] = "Empty";
+				}
+				else {
+					arrowedLine(second_img_colored, boardFields[meanColors[1].x], boardFields[meanColors[0].x], Scalar(0, 250, 250), 3);
+					cout << chessFields[meanColors[1].x][0] << " moves to " << chessFields[meanColors[0].x][0] << endl;
+					chessFields[meanColors[0].x][1] = chessFields[meanColors[1].x][1];
+					chessFields[meanColors[1].x][1] = "Empty";
+				}
+			}
+			else {
+			}
+		}
+		else if (meanColors.size() == 4) {
+			cout << "Castles" << endl;
+		}
+
+			/*
 			if (whitesTurn && (meanColors[i].y < meanColors[i + 1].y) || !whitesTurn && (meanColors[i + 1].y < meanColors[i].y)) {
 				arrowedLine(second_img_colored, boardFields[meanColors[i].x], boardFields[meanColors[i + 1].x], Scalar(0, 250, 250), 3);
 				cout << chessFields[meanColors[i].x] << " moves to " << chessFields[meanColors[i + 1].x] << endl;
@@ -149,14 +199,15 @@ int main() {
 			else {
 				arrowedLine(second_img_colored, boardFields[meanColors[i + 1].x], boardFields[meanColors[i].x], Scalar(0, 250, 250), 3);
 				cout << chessFields[meanColors[i + 1].x] << " moves to " << chessFields[meanColors[i].x] << endl;
-			}
-		}
+			}*/
 		whitesTurn = !whitesTurn;
 
-		imshow("first image nr" + to_string(imageIndex), second_img_colored);
+
+		move_images.emplace_back(second_img_colored);
+		//imshow("first image nr" + to_string(imageIndex), second_img_colored);
 	}
 	
-	//imshow("show move", colored_move_img);
+	imshow("show moves", makeCanvas(move_images, 1000, 4));
 
 	
 
@@ -378,7 +429,6 @@ void getMeanFieldColors(const Mat first_img, const Mat second_img, vector<Point>
 			}
 		}
 		differenceField /= (bottomRight.x - topLeft.x) * (bottomRight.y - topLeft.y);
-		cout << "Field Nr." << i << " Color Difference:" << differenceField << endl;
 		
 		if (abs(differenceField) > 0) {
 			meanColors.push_back(Point(i, differenceField));
@@ -519,4 +569,57 @@ void getHoughLines(const Mat img, vector<vector<Point>> &horizontalLines, vector
 			verticalLines.erase(verticalLines.begin() + i);
 		}
 	}
+}
+
+Mat makeCanvas(std::vector<cv::Mat>& vecMat, int windowHeight, int nRows) {
+	int N = vecMat.size();
+	nRows = nRows > N ? N : nRows;
+	int edgeThickness = 10;
+	int imagesPerRow = ceil(double(N) / nRows);
+	int resizeHeight = floor(2.0 * ((floor(double(windowHeight - edgeThickness) / nRows)) / 2.0)) - edgeThickness;
+	int maxRowLength = 0;
+
+	std::vector<int> resizeWidth;
+	for (int i = 0; i < N;) {
+		int thisRowLen = 0;
+		for (int k = 0; k < imagesPerRow; k++) {
+			double aspectRatio = double(vecMat[i].cols) / vecMat[i].rows;
+			int temp = int(ceil(resizeHeight * aspectRatio));
+			resizeWidth.push_back(temp);
+			thisRowLen += temp;
+			if (++i == N) break;
+		}
+		if ((thisRowLen + edgeThickness * (imagesPerRow + 1)) > maxRowLength) {
+			maxRowLength = thisRowLen + edgeThickness * (imagesPerRow + 1);
+		}
+	}
+	int windowWidth = maxRowLength;
+	cv::Mat canvasImage(windowHeight, windowWidth, CV_8UC3, Scalar(0, 0, 0));
+
+	for (int k = 0, i = 0; i < nRows; i++) {
+		int y = i * resizeHeight + (i + 1) * edgeThickness;
+		int x_end = edgeThickness;
+		for (int j = 0; j < imagesPerRow && k < N; k++, j++) {
+			int x = x_end;
+			cv::Rect roi(x, y, resizeWidth[k], resizeHeight);
+			cv::Size s = canvasImage(roi).size();
+			// change the number of channels to three
+			cv::Mat target_ROI(s, CV_8UC3);
+			if (vecMat[k].channels() != canvasImage.channels()) {
+				if (vecMat[k].channels() == 1) {
+					cv::cvtColor(vecMat[k], target_ROI, CV_GRAY2BGR);
+				}
+			}
+			else {
+				vecMat[k].copyTo(target_ROI);
+			}
+			cv::resize(target_ROI, target_ROI, s);
+			if (target_ROI.type() != canvasImage.type()) {
+				target_ROI.convertTo(target_ROI, canvasImage.type());
+			}
+			target_ROI.copyTo(canvasImage(roi));
+			x_end += resizeWidth[k] + edgeThickness;
+		}
+	}
+	return canvasImage;
 }
